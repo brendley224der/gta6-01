@@ -1,61 +1,98 @@
-// Every tuning number and colour in one place. The playfield is a fixed 1280x720 logical area;
-// the renderer scales it to the window, so no rule below depends on the screen size.
-
-export const FIELD = { width: 1280, height: 720, groundY: 664 };
-
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display's rate. */
-export const STEP = 1 / 60;
+// Vice Shores — every tuning number, colour and mission definition in one place.
+// The city is a grid of blocks separated by roads, with a beach and ocean on its east edge.
+// One world unit is about one metre; the playable city spans roughly -150..+150 in x and z.
+export const CITY = {
+  block: 42,
+  road: 14,
+  blocks: 5, // blocks per side; roads sit between them
+  half: 150,
+  beachX: 158,
+  oceanX: 178,
+};
 
 export const PLAYER = {
-  width: 72,
-  height: 24,
-  speed: 560,
-  invulnerable: 1.5,
+  walkSpeed: 9,
+  runSpeed: 14,
+  radius: 0.7,
+  maxHealth: 100,
+  punchDamage: 25,
+  punchRange: 2.2,
 };
 
-export const LIVES = 3;
-
-export const BLOCK = {
-  minWidth: 40,
-  maxWidth: 110,
-  height: 36,
-  speed: 240,
-  speedPerLevel: 30,
-  speedJitter: 90,
-  interval: 0.55,
-  intervalScale: 0.88,
-  minInterval: 0.14,
-  dodgePoints: 1,
+export const CAR = {
+  accel: 22,
+  brake: 34,
+  reverseAccel: 12,
+  maxSpeed: 42,
+  maxReverse: 12,
+  steer: 1.9,
+  drag: 0.6,
 };
 
-export const COIN = {
-  size: 24,
-  speed: 190,
-  speedPerLevel: 14,
-  interval: 1.4,
-  intervalJitter: 0.8,
-  points: 10,
+export const WANTED = {
+  decaySeconds: 45, // seconds with no crime before one star fades
+  maxStars: 5,
+  policePerStar: 2,
+  bustDistance: 2.2,
 };
 
-/** Seconds of play per level, and the last level: speeds and spawn rates stop growing there. */
-export const LEVEL = { seconds: 12, max: 12 };
-
-/** How many falling things can exist at once; the pool is allocated once, at boot. */
-export const POOL_SIZE = 64;
+export const SAVE_KEY = 'vice-shores.save.v1';
+export const BEST_KEY = 'vice-shores.best.v1';
 
 export const PALETTE = {
-  backdrop: '#11141b',
-  sky: '#1b1f2a',
-  ground: '#2a3040',
-  player: '#4fc3f7',
-  block: '#e5534b',
-  coin: '#f2c94c',
-  panel: '#252b38',
-  text: '#eef1f5',
-  muted: '#8b93a3',
+  skyTop: 0x2e6fb0,
+  skyHorizon: 0xffb36b,
+  sun: 0xffd9a0,
+  road: 0x2b2f36,
+  roadLine: 0xf5d76e,
+  sidewalk: 0x9aa0a3,
+  sand: 0xe8cf9a,
+  ocean: 0x1d7fa8,
+  grass: 0x5da24a,
+  building: [0xe8b48a, 0xd98f6a, 0x8fb8c9, 0xc9a0b4, 0xa8c686, 0x7fa8d9, 0xe0d0a0, 0xb48ac9],
+  glass: 0x2a4a66,
+  police: 0x1c2733,
+  taxi: 0xf2c230,
 };
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
-/** Where the best score is kept between visits (this browser only). */
-export const BEST_KEY = 'block-dodger.best';
+// The story: Mara Voss, a courier fresh off the ferry, owes the Shore Syndicate.
+// Each mission pays cash; finishing all three opens repeat courier runs.
+export const MISSIONS = [
+  {
+    id: 'delivery',
+    title: 'Mission 1 — First Delivery',
+    brief: 'Mara needs a driver she can trust. Take the package to the Marina drop-off.',
+    objective: 'Drive to the Marina marker',
+    reward: 500,
+    target: { x: 118, z: -118 },
+    kind: 'goto',
+  },
+  {
+    id: 'tail',
+    title: 'Mission 2 — Tail the Courier',
+    brief: 'A rival courier is moving Syndicate goods. Stay on his tail — do not lose him.',
+    objective: 'Tail the red courier car — stay close, stay unseen',
+    reward: 800,
+    kind: 'tail',
+    duration: 20,
+  },
+  {
+    id: 'pickup',
+    title: 'Mission 3 — Hot Pickup',
+    brief: 'The docks are crawling with Shore PD. Grab the case, then lose the heat at the safehouse.',
+    objective: 'Grab the case at the Docks, then reach the Safehouse',
+    reward: 1500,
+    target: { x: -118, z: 118 },
+    safehouse: { x: -118, z: -118 },
+    kind: 'pickup',
+    wantedOnStart: 2,
+  },
+];
+
+export const HINTS = [
+  'WASD move · Mouse drag camera · E enter/exit car · F punch · Click shoot · P pause · M mute',
+  'Steal any parked car with E. Crime raises your wanted stars — Shore PD will chase you.',
+  'Finish missions to earn cash. Your progress saves automatically.',
+];

@@ -1,79 +1,85 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// The screenshot scenes behind ?shot=start|play|chase|end. Each one sets the real
+// game to a lived-in moment — the title over the city, a drive with a mission
+// running, a three-star police chase, a busted/wasted game over — advances the
+// traffic and pedestrians a few seconds so the frame looks alive, and leaves
+// the game painted for main.js to capture twice. The same seed always gives
+// the same frame.
+export function stageShot(name, G, helpers) {
+  const { showScreen, resetWorld, enterCar } = helpers;
+  const { world, player, traffic, pedestrians, police, missions } = G;
 
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
-
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
+  function idleSeconds(seconds) {
+    for (let i = 0; i < seconds * 60; i += 1) {
+      traffic.update(1 / 60, G.playerCar);
+      pedestrians.update(1 / 60, null);
     }
   }
-  return Infinity;
-}
 
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
+  function putPlayerInCar() {
+    const car = G.parkedCars[0];
+    // On the x=0 road, driving north (+z), so the shot reads as a street, not a plaza.
+    car.x = 0;
+    car.z = -40;
+    car.angle = 0;
+    car.syncMesh();
+    enterCar(car);
   }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
+
+  resetWorld();
+  G.money = 1250;
+  police.setStars(0);
+
+  if (name === 'play') {
+    putPlayerInCar();
+    missions.start();
+    for (let i = 0; i < 150; i += 1) {
+      G.playerCar.drive(1 / 60, 1, 0);
+      traffic.update(1 / 60, G.playerCar);
+      pedestrians.update(1 / 60, null);
     }
+    showScreen('play');
+    return;
   }
-  return best;
-}
 
-/**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
- */
-export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
+  if (name === 'chase') {
+    putPlayerInCar();
+    missions.start();
+    police.setStars(3);
+    for (let i = 0; i < 240; i += 1) {
+      G.playerCar.drive(1 / 60, 1, 0);
+      traffic.update(1 / 60, G.playerCar);
+      pedestrians.update(1 / 60, null);
+      police.update(1 / 60, G.playerCar.x, G.playerCar.z, true, null, null);
+    }
+    // Pull the two nearest police cars into the frame ahead of the player, closing
+    // in from up the road, so the chase — not just the stars — is visible: cars
+    // placed behind the player would sit behind the chase camera itself.
+    const fx = Math.sin(G.playerCar.angle);
+    const fz = Math.cos(G.playerCar.angle);
+    police.cars.slice(0, 2).forEach((entry, i) => {
+      const car = entry.car;
+      const ahead = 16 + i * 6;
+      const side = i === 0 ? -4 : 5;
+      car.x = G.playerCar.x + fx * ahead - fz * side;
+      car.z = G.playerCar.z + fz * ahead + fx * side;
+      car.angle = G.playerCar.angle + Math.PI; // facing back toward the player
+      car.speed = 22;
+      car.syncMesh();
+    });
+    showScreen('play');
+    return;
   }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
+
+  if (name === 'end') {
+    player.state.health = 0;
+    player.state.dead = true;
+    G.overReason = 'WASTED';
+    idleSeconds(3);
+    showScreen('over');
+    return;
   }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+
+  // start (and any other name): the title over the living city.
+  idleSeconds(5);
+  showScreen('title');
 }

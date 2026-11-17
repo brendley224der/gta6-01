@@ -1,124 +1,205 @@
-// The game's rules and state, with no drawing and no browser in it: the player's paddle, the
-// pool of falling blocks and coins, spawning, collisions, score, lives and level. step() advances
-// one fixed step and returns what happened as bit flags, so the caller can react without the
-// world knowing about screens or sound. Nothing here allocates after createWorld returns.
-import { BLOCK, COIN, FIELD, LEVEL, LIVES, PLAYER, POOL_SIZE } from './config.js';
+// The city itself: road grid, sidewalks, buildings, beach, ocean, palms, lamps and
+// the mission markers. Builds the static three.js scene once from the seed, and
+// answers layout questions (road centres, parking spots, block corners) for the
+// traffic, pedestrians, missions and minimap.
+import { CITY, PALETTE } from './config.js';
+import { pick, range } from './random.js';
 
-export const KIND_BLOCK = 0;
-export const KIND_COIN = 1;
+const THREE = window.THREE;
 
-export const EVENT_HIT = 1;
-export const EVENT_COIN = 2;
-export const EVENT_OVER = 4;
+function mat(color, opts = {}) {
+  return new THREE.MeshLambertMaterial({ color, ...opts });
+}
 
-function overlaps(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+/** Road centre lines: x = roadXs[i] run north-south, z = roadZs[i] run east-west. */
+export function roadLines() {
+  const step = CITY.block + CITY.road;
+  const lines = [];
+  for (let i = -2; i <= 2; i += 1) lines.push(i * step);
+  return lines;
+}
+
+export function nearestRoadCoord(v) {
+  const lines = roadLines();
+  let best = lines[0];
+  for (const line of lines) if (Math.abs(line - v) < Math.abs(best - v)) best = line;
+  return best;
+}
+
+/** Is this point on a road (not inside a block)? */
+export function onRoad(x, z) {
+  const lines = roadLines();
+  const half = CITY.road / 2 + 1;
+  return lines.some((l) => Math.abs(x - l) < half) || lines.some((l) => Math.abs(z - l) < half);
 }
 
 export function createWorld(random) {
-  const player = { x: 0, y: FIELD.groundY - PLAYER.height, width: PLAYER.width, height: PLAYER.height, invulnerable: 0 };
-  const items = [];
-  for (let index = 0; index < POOL_SIZE; index += 1) {
-    items.push({ active: false, kind: KIND_BLOCK, x: 0, y: 0, width: 0, height: 0, speed: 0 });
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(PALETTE.skyHorizon);
+  scene.fog = new THREE.Fog(0xffc98a, 120, 420);
+
+  const sun = new THREE.DirectionalLight(PALETTE.sun, 1.15);
+  sun.position.set(-80, 120, -60);
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0xffe0b8, 0.55));
+  const hemi = new THREE.HemisphereLight(0x8fb8e8, 0x3a2f28, 0.5);
+  scene.add(hemi);
+
+  // Ground: grass base, then road strips, sidewalks and sand on top of it.
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(520, 520), mat(PALETTE.grass));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(20, -0.05, 0);
+  scene.add(ground);
+
+  const lines = roadLines();
+  const roadMat = mat(PALETTE.road);
+  const walkMat = mat(PALETTE.sidewalk);
+  for (const x of lines) {
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(CITY.road, 340), roadMat);
+    road.rotation.x = -Math.PI / 2;
+    road.position.set(x, 0, 0);
+    scene.add(road);
+    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 340), mat(PALETTE.roadLine));
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(x, 0.02, 0);
+    scene.add(dash);
   }
-  const state = { player, items, score: 0, lives: LIVES, level: 1, elapsed: 0, blockTimer: 0, coinTimer: 0 };
-
-  function reset() {
-    player.x = (FIELD.width - player.width) / 2;
-    player.invulnerable = 0;
-    for (const item of items) item.active = false;
-    state.score = 0;
-    state.lives = LIVES;
-    state.level = 1;
-    state.elapsed = 0;
-    state.blockTimer = BLOCK.interval;
-    state.coinTimer = COIN.interval;
+  for (const z of lines) {
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(340, CITY.road), roadMat);
+    road.rotation.x = -Math.PI / 2;
+    road.position.set(0, 0, z);
+    scene.add(road);
   }
-
-  function freeItem() {
-    for (let index = 0; index < items.length; index += 1) if (!items[index].active) return items[index];
-    return null;
-  }
-
-  function spawnBlock() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_BLOCK;
-    item.width = BLOCK.minWidth + random() * (BLOCK.maxWidth - BLOCK.minWidth);
-    item.height = BLOCK.height;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = BLOCK.speed + BLOCK.speedPerLevel * (state.level - 1) + random() * BLOCK.speedJitter;
-  }
-
-  function spawnCoin() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_COIN;
-    item.width = COIN.size;
-    item.height = COIN.size;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = COIN.speed + COIN.speedPerLevel * (state.level - 1);
-  }
-
-  function blockInterval() {
-    return Math.max(BLOCK.minInterval, BLOCK.interval * BLOCK.intervalScale ** (state.level - 1));
-  }
-
-  /**
-   * One fixed step. `direction` is -1, 0 or 1 (left, still, right). With `harmless` set (the title
-   * screen's backdrop) things fall but nothing touches the player and nothing scores.
-   */
-  function step(dt, direction, harmless) {
-    let events = 0;
-    state.elapsed += dt;
-    state.level = Math.min(LEVEL.max, 1 + Math.floor(state.elapsed / LEVEL.seconds));
-
-    player.x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * dt));
-    if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
-
-    state.blockTimer -= dt;
-    if (state.blockTimer <= 0) {
-      spawnBlock();
-      state.blockTimer += blockInterval();
-    }
-    state.coinTimer -= dt;
-    if (state.coinTimer <= 0) {
-      spawnCoin();
-      state.coinTimer += COIN.interval + random() * COIN.intervalJitter;
-    }
-
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      if (!item.active) continue;
-      item.y += item.speed * dt;
-      if (item.y > FIELD.groundY) {
-        item.active = false;
-        if (item.kind === KIND_BLOCK && !harmless) state.score += BLOCK.dodgePoints;
-        continue;
+  // Sidewalk slabs around every block.
+  const step = CITY.block + CITY.road;
+  const buildings = [];
+  for (let bx = -2; bx <= 2; bx += 1) {
+    for (let bz = -2; bz <= 2; bz += 1) {
+      const cx = bx * step;
+      const cz = bz * step;
+      const walk = new THREE.Mesh(new THREE.BoxGeometry(CITY.block, 0.3, CITY.block), walkMat);
+      walk.position.set(cx, 0.12, cz);
+      scene.add(walk);
+      // One or two towers per block, varied heights and pastel colours.
+      const count = random() < 0.45 ? 2 : 1;
+      for (let k = 0; k < count; k += 1) {
+        const w = range(random, 12, 22);
+        const d = range(random, 12, 22);
+        const h = range(random, 9, count === 1 ? 46 : 26);
+        const ox = count === 1 ? 0 : (k === 0 ? -9 : 9);
+        const oz = count === 1 ? 0 : (k === 0 ? -9 : 9);
+        const color = pick(random, PALETTE.building);
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
+        tower.position.set(cx + ox, h / 2 + 0.3, cz + oz);
+        scene.add(tower);
+        // Glass band near the top, and a rooftop box.
+        const band = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, Math.min(3, h * 0.18), d + 0.2), mat(PALETTE.glass, { emissive: 0x0a2038 }));
+        band.position.set(cx + ox, h * 0.82, cz + oz);
+        scene.add(band);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 1.6, d * 0.3), mat(0x6a6f75));
+        roof.position.set(cx + ox, h + 1, cz + oz);
+        scene.add(roof);
+        buildings.push({ x: cx + ox, z: cz + oz, w, d, h });
       }
-      if (harmless || !overlaps(item, player)) continue;
-      if (item.kind === KIND_COIN) {
-        item.active = false;
-        state.score += COIN.points;
-        events |= EVENT_COIN;
-      } else if (player.invulnerable === 0) {
-        item.active = false;
-        state.lives -= 1;
-        player.invulnerable = PLAYER.invulnerable;
-        events |= EVENT_HIT;
-        if (state.lives === 0) {
-          events |= EVENT_OVER;
-          break;
+    }
+  }
+
+  // Beach and ocean on the east edge, with a boardwalk strip.
+  const sand = new THREE.Mesh(new THREE.PlaneGeometry(60, 340), mat(PALETTE.sand));
+  sand.rotation.x = -Math.PI / 2;
+  sand.position.set(CITY.beachX + 18, 0.01, 0);
+  scene.add(sand);
+  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(140, 520), mat(PALETTE.ocean, { transparent: true, opacity: 0.92 }));
+  ocean.rotation.x = -Math.PI / 2;
+  ocean.position.set(CITY.oceanX + 70, 0.05, 0);
+  scene.add(ocean);
+  // Palms along the beach.
+  const palms = [];
+  for (let z = -140; z <= 140; z += 28) {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 7, 6), mat(0x8a6a42));
+    trunk.position.set(CITY.beachX + 4 + range(random, -2, 2), 3.5, z + range(random, -4, 4));
+    scene.add(trunk);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 6), mat(0x3f8f3a));
+    crown.position.set(trunk.position.x, 7.4, trunk.position.z);
+    crown.scale.y = 0.55;
+    scene.add(crown);
+    palms.push({ x: trunk.position.x, z: trunk.position.z });
+  }
+  // Street lamps at intersections.
+  for (const x of lines) {
+    for (const z of lines) {
+      if (random() < 0.5) continue;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6, 6), mat(0x3a3f45));
+      pole.position.set(x + CITY.road / 2 + 1, 3, z + CITY.road / 2 + 1);
+      scene.add(pole);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), mat(0xffe9a8, { emissive: 0x664411 }));
+      lamp.position.set(x + CITY.road / 2 + 1, 6.2, z + CITY.road / 2 + 1);
+      scene.add(lamp);
+    }
+  }
+
+  // A glowing beacon column marks the active mission target.
+  const beacon = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.6, 1.6, 60, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  beacon.position.set(0, 30, 0);
+  beacon.visible = false;
+  scene.add(beacon);
+  const beaconBase = new THREE.Mesh(new THREE.RingGeometry(2, 3.4, 24), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+  beaconBase.rotation.x = -Math.PI / 2;
+  beaconBase.position.set(0, 0.1, 0);
+  beaconBase.visible = false;
+  scene.add(beaconBase);
+
+  // Parking spots along the roads, for stealable cars.
+  const parking = [];
+  for (const x of lines) {
+    for (const z of [-112, -56, 0, 56, 112]) {
+      parking.push({ x: x + CITY.road / 2 - 2.2, z, angle: Math.PI / 2 });
+      parking.push({ x: x - CITY.road / 2 + 2.2, z: z + 7, angle: -Math.PI / 2 });
+    }
+  }
+
+  return {
+    scene,
+    sun,
+    ocean,
+    beacon,
+    beaconBase,
+    buildings,
+    palms,
+    parking,
+    /** Keep the player and cars inside the playable area. */
+    clamp(x, z) {
+      return {
+        x: Math.max(-CITY.half, Math.min(CITY.beachX + 26, x)),
+        z: Math.max(-CITY.half, Math.min(CITY.half, z)),
+      };
+    },
+    /** Circle-vs-building collision: push the point out of any tower footprint. */
+    collideBuildings(x, z, radius) {
+      for (const b of buildings) {
+        const dx = x - b.x;
+        const dz = z - b.z;
+        const px = b.w / 2 + radius;
+        const pz = b.d / 2 + radius;
+        if (Math.abs(dx) < px && Math.abs(dz) < pz) {
+          const pushX = px - Math.abs(dx);
+          const pushZ = pz - Math.abs(dz);
+          if (pushX < pushZ) x = b.x + (dx > 0 ? px : -px);
+          else z = b.z + (dz > 0 ? pz : -pz);
         }
       }
-    }
-    return events;
-  }
-
-  reset();
-  return { state, reset, step };
+      return { x, z };
+    },
+    setBeacon(x, z, visible) {
+      beacon.position.x = x;
+      beacon.position.z = z;
+      beacon.visible = visible;
+      beaconBase.position.x = x;
+      beaconBase.position.z = z;
+      beaconBase.visible = visible;
+    },
+  };
 }
