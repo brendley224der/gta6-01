@@ -1,6 +1,8 @@
-// Mara Voss on foot: a simple articulated figure (body, head, arms, legs) that
-// walks, runs, punches and shoots. Movement is camera-relative; the figure turns
-// to face its travel direction and its limbs swing with the stride.
+// Mara Voss on foot: a simple articulated figure (body, head, hair, arms, legs,
+// a little pistol in the right hand) that walks, runs, punches and shoots.
+// Movement is camera-relative; the figure turns to face its travel direction
+// and its limbs swing with the stride. After a hit she blinks briefly, safe
+// from the next one for a short window.
 import { PLAYER } from './config.js';
 
 const THREE = window.THREE;

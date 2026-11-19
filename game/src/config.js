@@ -1,19 +1,20 @@
 // Vice Shores — every tuning number, colour and mission definition in one place.
-// The city is a grid of blocks separated by roads, with a beach and ocean on its east edge.
-// One world unit is about one metre; the playable city spans roughly -150..+150 in x and z.
+// The city is a grid of blocks separated by roads, with a beach and ocean on its
+// east edge. One world unit is about one metre; the playable city spans roughly
+// -150..+150 in x and z, with the sand and water stretching further east.
 export const CITY = {
-  block: 42,
-  road: 14,
+  block: 42, // side of one city block, in metres
+  road: 14, // width of the roads between blocks
   blocks: 5, // blocks per side; roads sit between them
-  half: 150,
-  beachX: 158,
-  oceanX: 178,
+  half: 150, // playable half-extent in x and z
+  beachX: 158, // where the sand starts, east of downtown
+  oceanX: 178, // where the water starts
 };
 
 export const PLAYER = {
   walkSpeed: 9,
   runSpeed: 14,
-  radius: 0.7,
+  radius: 0.7, // collision radius on foot
   maxHealth: 100,
   punchDamage: 25,
   punchRange: 2.2,
@@ -25,15 +26,25 @@ export const CAR = {
   reverseAccel: 12,
   maxSpeed: 42,
   maxReverse: 12,
-  steer: 1.9,
-  drag: 0.6,
+  steer: 1.9, // radians per second at full lock
+  drag: 0.6, // rolling drag when coasting
+};
+
+export const SKID = {
+  minSpeed: 18, // skidding needs this speed and a hard turn
+  minSteer: 0.7,
+};
+
+export const CAMERA = {
+  fov: 62, // base field of view, degrees
+  driveKick: 8, // extra fov at top speed, for a sense of pace
 };
 
 export const WANTED = {
   decaySeconds: 45, // seconds with no crime before one star fades
   maxStars: 5,
   policePerStar: 2,
-  bustDistance: 2.2,
+  bustDistance: 2.2, // how close a cop must get to bust Mara on foot
 };
 
 export const SAVE_KEY = 'vice-shores.save.v1';
@@ -53,6 +64,8 @@ export const PALETTE = {
   glass: 0x2a4a66,
   police: 0x1c2733,
   taxi: 0xf2c230,
+  marina: 0x2a6f7f, // hulls and the pier at the docks
+  park: 0x4a7d3a, // the deep green of the central park's trees
 };
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -95,4 +108,6 @@ export const HINTS = [
   'WASD move · Mouse drag camera · E enter/exit car · F punch · Click shoot · P pause · M mute',
   'Steal any parked car with E. Crime raises your wanted stars — Shore PD will chase you.',
   'Finish missions to earn cash. Your progress saves automatically.',
+  'The minimap shows the gold mission marker, traffic in grey and police in blue.',
+  'At 3 stars or more the cops ram hard — a fresh car is cheaper than a hospital bill.',
 ];

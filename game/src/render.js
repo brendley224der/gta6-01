@@ -1,13 +1,16 @@
 // Rendering only: the three.js renderer, the chase camera, sunset lighting,
 // and the juice — particles (skid smoke, impacts, pickup sparkles), screen
-// shake, and a slowly drifting sun that warms the city toward evening.
+// shake, a speed-sensitive field of view, and a slowly drifting sun that warms
+// the city toward evening.
+import { CAMERA } from './config.js';
+
 const THREE = window.THREE;
 
 export function createRender(canvas, scene) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
+  const camera = new THREE.PerspectiveCamera(CAMERA.fov, window.innerWidth / window.innerHeight, 0.1, 900);
 
   const particles = [];
   const particleGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
@@ -68,6 +71,13 @@ export function createRender(canvas, scene) {
         want = camAngle + diff * Math.min(1, dt * 0.9);
       }
       camAngle = want;
+      // Speed stretches the field of view a little, so fast driving feels fast.
+      const speed01 = inCar ? Math.min(1, Math.abs(drag.speed || 0) / 42) : 0;
+      const wantFov = CAMERA.fov + speed01 * CAMERA.driveKick;
+      if (Math.abs(camera.fov - wantFov) > 0.05) {
+        camera.fov = wantFov;
+        camera.updateProjectionMatrix();
+      }
       const dist = vista ? 58 : (inCar ? 13 : 10);
       const height = vista ? 30 : (inCar ? 5.2 : 4.4);
       const cx = fx - Math.sin(camAngle) * dist;

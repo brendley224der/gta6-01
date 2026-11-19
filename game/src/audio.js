@@ -1,6 +1,7 @@
 // All sound is synthesized with WebAudio — no audio files, no network.
-// Short effects (gunshot, punch, pickup, siren blip, crash) plus a quiet
-// sunset music loop: a lazy bassline and soft chords scheduled ahead of time.
+// Short effects (gunshot, punch, pickup, siren blip, crash, skid screech) plus
+// a quiet sunset music loop: a lazy bassline and soft chords scheduled ahead.
+// Nothing is created until a user gesture unlocks the context (start button).
 export function createAudio() {
   let ctx = null;
   let master = null;
@@ -97,6 +98,7 @@ export function createAudio() {
     shoot() { noise(0.14, 0.5, 2600); tone(180, 0.1, 'square', 0.18, 0, 60); },
     punch() { noise(0.09, 0.35, 900); tone(120, 0.08, 'sine', 0.2, 0, 70); },
     crash() { noise(0.3, 0.5, 700); tone(90, 0.25, 'sine', 0.25, 0, 40); },
+    skid() { noise(0.22, 0.16, 3200); },
     pickup() { tone(660, 0.12, 'sine', 0.25); tone(990, 0.2, 'sine', 0.25, 0.1); },
     missionDone() {
       [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.35, 'triangle', 0.22, i * 0.11));

@@ -1,7 +1,8 @@
 // Combat on foot: a hitscan pistol shot and a close-range punch. Shooting draws
-// a bright tracer line that fades, kicks a few particles, and can damage police
-// cars, traffic cars and pedestrians — every shot is a crime, so the wanted level
-// climbs. Punching is quieter: it only counts when it lands on a pedestrian.
+// a bright tracer line that fades, flashes at the muzzle, kicks a few particles,
+// and can damage police cars, traffic cars and pedestrians — every shot is a
+// crime, so the wanted level climbs. Punching is quieter: it only counts when
+// it lands on a pedestrian.
 import { PLAYER } from './config.js';
 
 const THREE = window.THREE;
@@ -9,6 +10,8 @@ const THREE = window.THREE;
 export function createCombat(scene) {
   const tracers = [];
   const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe27a });
+  const flashMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.95 });
+  const flashGeo = new THREE.SphereGeometry(0.35, 8, 6);
 
   function addTracer(from, to) {
     const dir = new THREE.Vector3().subVectors(to, from);
@@ -18,6 +21,13 @@ export function createCombat(scene) {
     mesh.lookAt(to);
     scene.add(mesh);
     tracers.push({ mesh, life: 0.12 });
+  }
+
+  function addFlash(at) {
+    const flash = new THREE.Mesh(flashGeo, flashMat);
+    flash.position.copy(at);
+    scene.add(flash);
+    tracers.push({ mesh: flash, life: 0.07 });
   }
 
   return {
@@ -59,6 +69,7 @@ export function createCombat(scene) {
           hitPoint.set(player.x + dirX * along, 1.2, player.z + dirZ * along);
         }
       }
+      addFlash(new THREE.Vector3(player.x + dirX * 0.9, 1.5, player.z + dirZ * 0.9));
       addTracer(from, hitPoint);
       if (hit) {
         if (hit.kind === 'car') {

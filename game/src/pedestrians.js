@@ -1,11 +1,30 @@
 // Pedestrians: colourful walkers strolling the sidewalks. They pick a corner,
 // walk to it, pick another, and flee from gunfire or a speeding car. A walker
-// knocked down by a car counts as a crime and raises the wanted level.
-import { range } from './random.js';
+// knocked down by a car counts as a crime and raises the wanted level. Walkers
+// come in three paces — strollers, brisk walkers and joggers — and a few
+// sunbathers linger on the sand by the beach.
+import { chance, range } from './random.js';
 
 const THREE = window.THREE;
 const SHIRTS = [0xe84a5f, 0x2f9e8f, 0xf2a541, 0x7a5fd0, 0x3a7bd5, 0xeeeeee, 0x222222];
 const SKINS = [0xe8b98a, 0xc98d5f, 0x8a5a3b, 0xf0c8a0];
+
+// Pace bands: [min speed, max speed, share of walkers].
+const PACES = [
+  { min: 1.0, max: 1.7, share: 0.45 }, // strollers
+  { min: 1.8, max: 2.6, share: 0.4 }, // brisk walkers
+  { min: 3.2, max: 4.2, share: 0.15 }, // joggers
+];
+
+function paceFor(random) {
+  const roll = random();
+  let acc = 0;
+  for (const p of PACES) {
+    acc += p.share;
+    if (roll < acc) return range(random, p.min, p.max);
+  }
+  return range(random, 1.2, 2.4);
+}
 
 export function createPedestrians(scene, random, count = 24) {
   const walkers = [];
@@ -36,24 +55,31 @@ export function createPedestrians(scene, random, count = 24) {
     const bx = (Math.floor(random() * 5) - 2) * step;
     const bz = (Math.floor(random() * 5) - 2) * step;
     return {
-      x: bx + (random() < 0.5 ? -1 : 1) * range(random, 18, 24),
+      x: bx + (chance(random, 0.5) ? -1 : 1) * range(random, 18, 24),
       z: bz + range(random, -24, 24),
     };
   }
 
+  function randomBeachPoint() {
+    // Sunbathers on the sand, east of downtown.
+    return { x: range(random, 162, 182), z: range(random, -120, 120) };
+  }
+
   for (let i = 0; i < count; i += 1) {
     const mesh = buildWalker();
-    const p = randomSidewalkPoint();
-    const target = randomSidewalkPoint();
+    const onBeach = chance(random, 0.15);
+    const p = onBeach ? randomBeachPoint() : randomSidewalkPoint();
+    const target = onBeach ? randomBeachPoint() : randomSidewalkPoint();
     walkers.push({
       ...mesh,
       x: p.x, z: p.z,
       target,
-      speed: range(random, 1.2, 2.4),
+      speed: paceFor(random),
       phase: random() * 6,
       fleeing: 0,
       down: false,
       downTimer: 0,
+      beach: onBeach,
     });
   }
 
@@ -67,7 +93,7 @@ export function createPedestrians(scene, random, count = 24) {
             w.down = false;
             w.group.rotation.x = 0;
             w.group.position.y = 0;
-            w.target = randomSidewalkPoint();
+            w.target = w.beach ? randomBeachPoint() : randomSidewalkPoint();
           }
           continue;
         }
@@ -88,7 +114,7 @@ export function createPedestrians(scene, random, count = 24) {
           const dz = w.target.z - w.z;
           const dist = Math.hypot(dx, dz);
           if (dist < 1.5) {
-            w.target = randomSidewalkPoint();
+            w.target = w.beach ? randomBeachPoint() : randomSidewalkPoint();
           } else {
             w.x += (dx / dist) * w.speed * dt;
             w.z += (dz / dist) * w.speed * dt;

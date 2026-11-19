@@ -1,7 +1,8 @@
-// The HUD: health bar, cash, wanted stars, mission objective, speed and hints,
-// plus the live minimap — a small canvas that draws the road grid, the beach,
-// the player arrow, cars, police and the gold mission beacon, north-up.
-import { CITY } from './config.js';
+// The HUD: health bar, cash, wanted stars, mission objective, mission progress,
+// speed and hints, plus the live minimap — a small canvas that draws the road
+// grid, the beach, the player arrow, cars, police and the gold mission beacon,
+// north-up.
+import { CITY, MISSIONS } from './config.js';
 
 export function createHud() {
   const el = (id) => document.getElementById(id);
@@ -11,6 +12,7 @@ export function createHud() {
   const starsEl = el('stars');
   const objectiveEl = el('objective');
   const missionEl = el('mission-title');
+  const progressEl = el('mission-progress');
   const speedEl = el('speed');
   const messageEl = el('message');
   const hintEl = el('hint');
@@ -85,6 +87,11 @@ export function createHud() {
       starsEl.style.color = state.stars > 0 ? '#ff5252' : '#ffffff88';
       objectiveEl.textContent = state.objective;
       missionEl.textContent = state.missionTitle;
+      // "Mission 2/3" while the story runs; "Story complete" once it is done.
+      if (progressEl) {
+        const done = typeof state.missionIndex === 'number' && state.missionIndex >= MISSIONS.length;
+        progressEl.textContent = done ? 'Story complete' : `Mission ${Math.min(MISSIONS.length, (state.missionIndex || 0) + 1)}/${MISSIONS.length}`;
+      }
       speedEl.textContent = state.inCar ? `${Math.round(Math.abs(state.speed) * 3.6)} km/h` : '';
       messageEl.textContent = state.message || '';
       messageEl.style.opacity = state.message ? '1' : '0';

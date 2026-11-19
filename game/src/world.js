@@ -1,9 +1,9 @@
-// The city itself: road grid, sidewalks, buildings, beach, ocean, palms, lamps and
-// the mission markers. Builds the static three.js scene once from the seed, and
-// answers layout questions (road centres, parking spots, block corners) for the
-// traffic, pedestrians, missions and minimap.
+// The city itself: road grid, sidewalks, buildings, beach, ocean, marina,
+// central park, palms, lamps and the mission markers. Builds the static three.js
+// scene once from the seed, and answers layout questions (road centres, parking
+// spots, block corners) for the traffic, pedestrians, missions and minimap.
 import { CITY, PALETTE } from './config.js';
-import { pick, range } from './random.js';
+import { chance, pick, range } from './random.js';
 
 const THREE = window.THREE;
 
@@ -70,9 +70,13 @@ export function createWorld(random) {
     road.position.set(0, 0, z);
     scene.add(road);
   }
-  // Sidewalk slabs around every block.
+
+  // City blocks: sidewalk slabs, then one or two towers per block — except the
+  // middle block, which is the central park: lawn, paths and trees instead of
+  // towers, so the city has somewhere green to breathe.
   const step = CITY.block + CITY.road;
   const buildings = [];
+  const trees = [];
   for (let bx = -2; bx <= 2; bx += 1) {
     for (let bz = -2; bz <= 2; bz += 1) {
       const cx = bx * step;
@@ -80,8 +84,32 @@ export function createWorld(random) {
       const walk = new THREE.Mesh(new THREE.BoxGeometry(CITY.block, 0.3, CITY.block), walkMat);
       walk.position.set(cx, 0.12, cz);
       scene.add(walk);
+      if (bx === 0 && bz === 0) {
+        // Central park: a lawn slab, two crossing paths and a ring of trees.
+        const lawn = new THREE.Mesh(new THREE.BoxGeometry(CITY.block - 4, 0.5, CITY.block - 4), mat(PALETTE.park));
+        lawn.position.set(cx, 0.3, cz);
+        scene.add(lawn);
+        for (const [w, d, px, pz] of [[CITY.block - 4, 3, 0, 0], [3, CITY.block - 4, 0, 0]]) {
+          const path = new THREE.Mesh(new THREE.BoxGeometry(w, 0.55, d), mat(0xd8c9a8));
+          path.position.set(cx + px, 0.32, cz + pz);
+          scene.add(path);
+        }
+        for (let i = 0; i < 10; i += 1) {
+          const tx = cx + range(random, -16, 16);
+          const tz = cz + range(random, -16, 16);
+          if (Math.abs(tx - cx) < 3 || Math.abs(tz - cz) < 3) continue; // keep the paths clear
+          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 3.4, 6), mat(0x6a4a2a));
+          trunk.position.set(tx, 2.2, tz);
+          scene.add(trunk);
+          const crown = new THREE.Mesh(new THREE.SphereGeometry(range(random, 1.8, 2.6), 8, 6), mat(0x3f8f3a));
+          crown.position.set(tx, 4.6, tz);
+          scene.add(crown);
+          trees.push({ x: tx, z: tz });
+        }
+        continue;
+      }
       // One or two towers per block, varied heights and pastel colours.
-      const count = random() < 0.45 ? 2 : 1;
+      const count = chance(random, 0.45) ? 2 : 1;
       for (let k = 0; k < count; k += 1) {
         const w = range(random, 12, 22);
         const d = range(random, 12, 22);
@@ -92,13 +120,21 @@ export function createWorld(random) {
         const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
         tower.position.set(cx + ox, h / 2 + 0.3, cz + oz);
         scene.add(tower);
-        // Glass band near the top, and a rooftop box.
+        // Glass band near the top, a rooftop box, and sometimes an antenna.
         const band = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, Math.min(3, h * 0.18), d + 0.2), mat(PALETTE.glass, { emissive: 0x0a2038 }));
         band.position.set(cx + ox, h * 0.82, cz + oz);
         scene.add(band);
         const roof = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 1.6, d * 0.3), mat(0x6a6f75));
         roof.position.set(cx + ox, h + 1, cz + oz);
         scene.add(roof);
+        if (chance(random, 0.4)) {
+          const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5, 5), mat(0x3a3f45));
+          antenna.position.set(cx + ox + w * 0.2, h + 3.5, cz + oz);
+          scene.add(antenna);
+          const tip = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 5), new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+          tip.position.set(cx + ox + w * 0.2, h + 6, cz + oz);
+          scene.add(tip);
+        }
         buildings.push({ x: cx + ox, z: cz + oz, w, d, h });
       }
     }
@@ -125,10 +161,27 @@ export function createWorld(random) {
     scene.add(crown);
     palms.push({ x: trunk.position.x, z: trunk.position.z });
   }
+  // Marina: a wooden pier jutting into the water and a few moored boats.
+  const pier = new THREE.Mesh(new THREE.BoxGeometry(26, 0.6, 5), mat(0x8a6a42));
+  pier.position.set(CITY.oceanX + 8, 0.4, -84);
+  scene.add(pier);
+  const boats = [];
+  for (let i = 0; i < 4; i += 1) {
+    const bx = CITY.oceanX + 26 + i * 9;
+    const bz = -96 + i * 14;
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(4, 1.2, 8), mat(pick(random, [0xe8e8e8, PALETTE.marina, 0xc0392b])));
+    hull.position.set(bx, 0.7, bz);
+    hull.rotation.y = range(random, -0.2, 0.2);
+    scene.add(hull);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 6, 5), mat(0xdddddd));
+    mast.position.set(bx, 3.6, bz);
+    scene.add(mast);
+    boats.push({ x: bx, z: bz });
+  }
   // Street lamps at intersections.
   for (const x of lines) {
     for (const z of lines) {
-      if (random() < 0.5) continue;
+      if (chance(random, 0.5)) continue;
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6, 6), mat(0x3a3f45));
       pole.position.set(x + CITY.road / 2 + 1, 3, z + CITY.road / 2 + 1);
       scene.add(pole);
@@ -169,6 +222,8 @@ export function createWorld(random) {
     beaconBase,
     buildings,
     palms,
+    trees,
+    boats,
     parking,
     /** Keep the player and cars inside the playable area. */
     clamp(x, z) {

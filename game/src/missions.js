@@ -1,7 +1,9 @@
 // Missions and the story arc: three scripted jobs for Mara Voss, then repeatable
 // courier runs for cash. A mission has a target, a live objective line for the
 // HUD, and a beacon in the world; completing one pays out and advances the arc.
-// The module owns no rendering beyond the beacon — the world draws that.
+// The module owns no rendering beyond the beacon — the world draws that. The
+// repeat jobs alternate: a delivery, then a pickup that also draws the police,
+// so free roam never settles into one loop.
 import { MISSIONS } from './config.js';
 
 export function createMissions(world) {
@@ -68,14 +70,24 @@ export function createMissions(world) {
     /** Start a repeatable courier run once the story is done. */
     startRepeat(playerX, playerZ) {
       repeatCount += 1;
-      const targets = [
+      const corners = [
         { x: 118, z: 118 }, { x: -118, z: -118 }, { x: 118, z: -118 }, { x: -118, z: 118 },
       ];
-      const target = targets[repeatCount % targets.length];
-      active = { def: { id: 'courier', title: 'Courier Run', brief: 'Drop the parcel at the marker.', objective: 'Deliver to the marker', reward: 300, kind: 'goto', target }, stage: 0 };
-      phase = 'active';
-      world.setBeacon(target.x, target.z, true);
-      message = 'Courier Run: deliver the parcel to the gold marker.';
+      const target = corners[repeatCount % corners.length];
+      // Even runs are plain deliveries; odd runs are hot pickups: grab the parcel
+      // at the corner, then shake one star of heat at the safehouse.
+      if (repeatCount % 2 === 0) {
+        active = { def: { id: 'courier', title: 'Courier Run', brief: 'Drop the parcel at the marker.', objective: 'Deliver to the marker', reward: 300, kind: 'goto', target }, stage: 0 };
+        phase = 'active';
+        world.setBeacon(target.x, target.z, true);
+        message = 'Courier Run: deliver the parcel to the gold marker.';
+      } else {
+        const safehouse = corners[(repeatCount + 2) % corners.length];
+        active = { def: { id: 'courier-pickup', title: 'Hot Pickup', brief: 'Grab the parcel, then lose the heat at the safehouse.', objective: 'Grab the parcel, then reach the Safehouse', reward: 400, kind: 'pickup', target, safehouse }, stage: 0, pickedUp: false };
+        phase = 'active';
+        world.setBeacon(target.x, target.z, true);
+        message = 'Hot Pickup: grab the parcel at the marker — the cops will notice.';
+      }
       messageTimer = 4;
       return active.def;
     },

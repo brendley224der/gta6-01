@@ -59,7 +59,7 @@ export function createPolice(scene, random) {
         stars = Math.max(0, stars - 1);
         quietTimer = 0;
       }
-      const wanted = WANTED.policePerStar * stars;
+      const wanted = WANTED.policePerStar * wantedCount();
       spawnTimer -= dt;
       if (cars.length < wanted && spawnTimer <= 0) {
         spawnOne(px, pz);
@@ -81,15 +81,16 @@ export function createPolice(scene, random) {
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         car.angle += Math.max(-2.4 * dt, Math.min(2.4 * dt, diff));
+        // The hotter the chase, the faster the pursuit cars push.
         const targetSpeed = dist > 30 ? 34 : 26;
         car.speed += (targetSpeed - car.speed) * dt * 0.8;
         car.x += Math.sin(car.angle) * car.speed * dt;
         car.z += Math.cos(car.angle) * car.speed * dt;
         car.syncMesh();
-        // Flashing light bar.
-        const phase = Math.floor(performance.now() / 260) % 2 === 0;
-        if (car.mesh.userData.lightR) car.mesh.userData.lightR.material.color.setHex(phase ? 0xff2222 : 0x551111);
-        if (car.mesh.userData.lightB) car.mesh.userData.lightB.material.color.setHex(phase ? 0x111155 : 0x2244ff);
+        // Flashing light bar: red and blue alternate, never both bright at once.
+        const redOn = Math.floor(performance.now() / 260) % 2 === 0;
+        if (car.mesh.userData.lightR) car.mesh.userData.lightR.material.color.setHex(redOn ? 0xff2222 : 0x551111);
+        if (car.mesh.userData.lightB) car.mesh.userData.lightB.material.color.setHex(redOn ? 0x111155 : 0x2244ff);
         // Busted: police reach the player on foot at close range.
         if (!playerInCar && dist < WANTED.bustDistance && onBusted) onBusted();
       }

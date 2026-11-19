@@ -1,9 +1,10 @@
 // Traffic: civilian cars that cruise the road grid on rectangular loops, keeping
 // to their lane and slowing for the car ahead, plus the red courier car the tail
-// mission follows. Traffic cars are simple state machines, not physics bodies.
+// mission follows. A few of the cruisers are yellow cabs. Traffic cars are simple
+// state machines, not physics bodies.
 import { createCar } from './vehicles.js';
 import { roadLines } from './world.js';
-import { range } from './random.js';
+import { chance, range } from './random.js';
 
 const CAR_COLORS = [0xc0392b, 0x2e86c1, 0xf1c40f, 0x7d3c98, 0x1abc9c, 0xe67e22, 0xecf0f1, 0x2c3e50];
 
@@ -15,15 +16,16 @@ export function createTraffic(scene, random, count = 14) {
     // A rectangle loop around one block: pick a road pair and a direction.
     const x = lines[Math.floor(random() * lines.length)];
     const z = lines[Math.floor(random() * lines.length)];
-    const dir = random() < 0.5 ? 1 : -1;
+    const dir = chance(random, 0.5) ? 1 : -1;
     const half = 28 + Math.floor(random() * 3) * 56;
     return { x, z, dir, half };
   }
 
   function spawnOne() {
     const loop = randomLoop();
-    const color = CAR_COLORS[Math.floor(random() * CAR_COLORS.length)];
-    const car = createCar(scene, loop.x, loop.z, 0, color, false);
+    const isTaxi = chance(random, 0.25);
+    const color = isTaxi ? 0xf2c230 : CAR_COLORS[Math.floor(random() * CAR_COLORS.length)];
+    const car = createCar(scene, loop.x, loop.z, 0, color, false, isTaxi);
     car.driver = 'traffic';
     car.parked = false;
     const entry = {

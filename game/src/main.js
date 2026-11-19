@@ -10,7 +10,7 @@ import { BEST_KEY, HINTS, PLAYER, SAVE_KEY } from './config.js';
 import { createRandom } from './random.js';
 import { createWorld } from './world.js';
 import { createPlayer } from './player.js';
-import { createCar, spawnParkedCar } from './vehicles.js';
+import { spawnParkedCar } from './vehicles.js';
 import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
 import { createPolice } from './police.js';
@@ -55,7 +55,7 @@ for (let i = 0; i < 10; i += 1) {
 const G = {
   world, player, traffic, pedestrians, police, missions, combat, hud, render, audio, parkedCars,
   money: 0, best: 0, screen: 'title', playerCar: null, overReason: 'WASTED',
-  elapsed: 0, hintIndex: 0, engineTimer: 0,
+  elapsed: 0, hintIndex: 0, engineTimer: 0, skidTimer: 0,
   state: player.state,
 };
 
@@ -185,6 +185,7 @@ function hudState() {
     health: player.state.health,
     money: G.money,
     stars: police.stars,
+    missionIndex: missions.index,
     objective: missions.objective(),
     missionTitle: missions.phase === 'active' && missions.active ? missions.active.def.title : (def ? def.title : 'Vice Shores — Free Roam'),
     speed: G.playerCar ? G.playerCar.speed : 0,
@@ -205,7 +206,8 @@ function paint(dt) {
   const focusX = G.playerCar ? G.playerCar.x : player.state.x;
   const focusZ = G.playerCar ? G.playerCar.z : player.state.z;
   const heading = G.playerCar ? G.playerCar.angle : player.state.angle;
-  render.follow(dt, focusX, focusZ, heading, !!G.playerCar, { x: 0, y: 0 });
+  // The camera gets the speed too, so the field of view can stretch with pace.
+  render.follow(dt, focusX, focusZ, heading, !!G.playerCar, { x: 0, y: 0, speed: G.playerCar ? G.playerCar.speed : 0 });
   render.draw(dt, world);
   hud.update(hudState());
 }
@@ -346,7 +348,11 @@ function runGame() {
         render.addShake(0.5);
         car.speed *= 0.4;
       }
-      if (wasSkid) render.skidPuff(car.x - Math.sin(car.angle) * 2, car.z - Math.cos(car.angle) * 2);
+      if (wasSkid) {
+        render.skidPuff(car.x - Math.sin(car.angle) * 2, car.z - Math.cos(car.angle) * 2);
+        G.skidTimer -= dt;
+        if (G.skidTimer <= 0) { audio.skid(); G.skidTimer = 0.5; }
+      }
       G.engineTimer -= dt;
       if (G.engineTimer <= 0) { audio.engine(Math.abs(car.speed) / 42); G.engineTimer = 0.18; }
       // Running over pedestrians is a crime.

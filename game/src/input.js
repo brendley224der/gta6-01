@@ -2,6 +2,7 @@
 // punch, pause, mute, confirm) are queued as bit flags and taken once by the loop,
 // so a press between two frames is never lost and never counted twice. The camera
 // orbits by dragging the mouse; clicking also fires the player's weapon on foot.
+// Arrow keys mirror WASD, and Shift runs.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;
