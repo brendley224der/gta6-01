@@ -39,3 +39,11 @@ node serve.ts   # serves game/ at http://localhost:8080/
 ```sh
 MAKEFUN_OUTPUT_DIR=out node main.ts
 ```
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/brendley224der/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/brendley224der/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+Vice Shores is an entry for the [Make GTA 6 bounty](https://make.fun/bounty/gta6-01) on make.fun.
+
+Run it: `node serve.ts`, then open http://localhost:8080.
