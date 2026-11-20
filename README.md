@@ -1,49 +1,30 @@
 # Vice Shores
 
-A GTA 6-inspired 3D open-world crime game that runs entirely in the browser.
-Explore a coastal city — downtown streets, a park district, a marina with
-boats, and a beach — on foot or behind the wheel.
-
-## How to play
-
-- **WASD / arrows** — walk (hold Shift to run); drive when inside a car
-- **E** — enter / exit a car. Stealing a parked car raises your wanted level;
-  hailing a yellow taxi is free and legal
-- **M** — start the next story mission
-
-## Features
-
-- On-foot movement with a third-person camera
-- Driving: enter/exit cars, steering, acceleration, braking, speed in the HUD
-- Wanted system: crimes raise stars, police cars pursue and ram, escaping and
-  staying out of sight decays the wanted level
-- Three story missions with objectives, progress, and rewards ($500 / $750 /
-  $1,000): Package Run, Lose the Heat, VIP to the Marina
-- Minimap with player arrow, mission marker, police dots, and taxi icons
-- Taxis you can hail, pedestrians, and looping traffic for city life
-- HUD: wanted stars, money, speed, mission objective, banners, start screen
-
-## Tech
-
-- three.js 0.160.0, vendored under `game/vendor/` (no network at runtime)
-- Plain ES modules under `game/src/`; no build step, no paid APIs
-
-## Run locally
-
-```sh
-node serve.ts   # serves game/ at http://localhost:8080/
-```
-
-## Build the entry output
-
-```sh
-MAKEFUN_OUTPUT_DIR=out node main.ts
-```
-
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/brendley224der/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/brendley224der/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
 Vice Shores is an entry for the [Make GTA 6 bounty](https://make.fun/bounty/gta6-01) on make.fun.
+
+Vice Shores is a 3D open-world crime game inspired by GTA 6 that runs entirely in the browser. You wake up in a coastal city and make your own trouble: downtown towers, a leafy park district, a marina full of boats, and a long sandy beach are all yours to roam, on foot or behind the wheel.
+
+## How to play
+
+- **Move:** WASD or arrow keys to walk, hold **Shift** to run.
+- **Cars:** press **E** to get in and out of a car. A parked car is free to take — but stealing one raises your wanted level.
+- **Taxis:** yellow cabs are free and legal. Hop in one when you want to travel without the cops on your tail.
+- **Missions:** press **M** to start the next story mission. Three are waiting: **Package Run** ($500), **Lose the Heat** ($750), and **VIP to the Marina** ($1,000).
+- **Wanted system:** the more heat you cause, the more police chase you. Lay low and the wanted level decays on its own.
+- **Minimap:** the corner map shows your arrow, the mission marker, police positions, and taxi icons, so you always know where the trouble is.
+- **The city is alive:** pedestrians stroll the sidewalks and traffic cruises the streets while you play.
+
+## HUD
+
+The screen keeps everything in view: wanted stars, cash, speed, the current mission objective, banner announcements, and a start screen that sets the scene before you play.
+
+## Tech
+
+- Built on three.js 0.160.0, vendored locally in `game/vendor/` — the game makes no network requests at runtime.
+- Plain ES modules in `game/src/`, no build step, no paid APIs.
 
 Run it: `node serve.ts`, then open http://localhost:8080.
