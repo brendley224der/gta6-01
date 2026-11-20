@@ -1,85 +1,77 @@
-// The screenshot scenes behind ?shot=start|play|chase|end. Each one sets the real
-// game to a lived-in moment — the title over the city, a drive with a mission
-// running, a three-star police chase, a busted/wasted game over — advances the
-// traffic and pedestrians a few seconds so the frame looks alive, and leaves
-// the game painted for main.js to capture twice. The same seed always gives
-// the same frame.
-export function stageShot(name, G, helpers) {
-  const { showScreen, resetWorld, enterCar } = helpers;
-  const { world, player, traffic, pedestrians, police, missions } = G;
+// Vice Shores — screenshot staging: ?shot=<name>&seed=1 puts the game in a
+// fixed, good-looking state for each of the four screenshots, then sets
+// window.__shotReady = true once the scene has rendered.
 
-  function idleSeconds(seconds) {
-    for (let i = 0; i < seconds * 60; i += 1) {
-      traffic.update(1 / 60, G.playerCar);
-      pedestrians.update(1 / 60, null);
-    }
+import { SHOT_NAMES } from './config.js';
+import { addWanted, syncPolice } from './police.js';
+import { startMission } from './missions.js';
+
+export function parseShotParams() {
+  const q = new URLSearchParams(window.location.search);
+  const shot = q.get('shot');
+  const seed = Number.parseInt(q.get('seed') || '1', 10) || 1;
+  return { shot: SHOT_NAMES.includes(shot) ? shot : null, seed };
+}
+
+// Stage one shot. `game` is the live game object from main.js; the helpers
+// it needs (enterCar, setWanted, teleport) are passed in as `actions`.
+export function stageShot(game, actions) {
+  const { shot } = game.shotParams;
+  if (!shot) return false;
+  if (shot === 'start') {
+    // Start screen stays up; the camera orbits the city behind it.
+    game.shotOrbit = true;
+    return true;
   }
-
-  function putPlayerInCar() {
-    const car = G.parkedCars[0];
-    // On the x=0 road, driving north (+z), so the shot reads as a street, not a plaza.
-    car.x = 0;
-    car.z = -40;
-    car.angle = 0;
-    car.syncMesh();
-    enterCar(car);
-  }
-
-  resetWorld();
-  G.money = 1250;
-  police.setStars(0);
-
-  if (name === 'play') {
-    putPlayerInCar();
-    missions.start();
-    for (let i = 0; i < 150; i += 1) {
-      G.playerCar.drive(1 / 60, 1, 0);
-      traffic.update(1 / 60, G.playerCar);
-      pedestrians.update(1 / 60, null);
+  // Every other shot plays the game: hide the start screen and begin.
+  actions.beginPlay();
+  // Snap the chase camera behind its subject now: under SwiftShader the
+  // smoothed camera starts 50+ units away and converges too slowly for a
+  // good still, so staging places it exactly where the loop will keep it.
+  const snapCam = (tx, tz, heading, dist, height) => {
+    game.camState.yaw = heading + Math.PI;
+    game.camera.position.set(tx + Math.sin(game.camState.yaw) * dist, height, tz + Math.cos(game.camState.yaw) * dist);
+    game.camera.lookAt(tx, 1.6, tz);
+  };
+  if (shot === 'drive') {
+    const car = actions.nearestParkedCar();
+    if (car) actions.enterCar(car, { silent: true });
+    // South street (z=120): low-rise blocks on both sides and the beach
+    // beyond, so the road and the car read instead of a tower face.
+    game.player.group.position.set(0, 0, 120);
+    if (game.currentCar) {
+      game.currentCar.mesh.position.set(0, 0, 120);
+      game.currentCar.heading = Math.PI / 2;
+      game.currentCar.mesh.rotation.y = Math.PI / 2;
+      game.currentCar.speed = 16;
+      snapCam(0, 120, Math.PI / 2, 12, 6);
     }
-    showScreen('play');
-    return;
-  }
-
-  if (name === 'chase') {
-    putPlayerInCar();
-    missions.start();
-    police.setStars(3);
-    for (let i = 0; i < 240; i += 1) {
-      G.playerCar.drive(1 / 60, 1, 0);
-      traffic.update(1 / 60, G.playerCar);
-      pedestrians.update(1 / 60, null);
-      police.update(1 / 60, G.playerCar.x, G.playerCar.z, true, null, null);
+  } else if (shot === 'chase') {
+    const car = actions.nearestParkedCar();
+    if (car) actions.enterCar(car, { silent: true });
+    if (game.currentCar) {
+      game.currentCar.mesh.position.set(-60, 0, 120);
+      game.currentCar.heading = Math.PI / 2;
+      game.currentCar.mesh.rotation.y = Math.PI / 2;
+      game.currentCar.speed = 18;
+      snapCam(-60, 120, Math.PI / 2, 12, 6);
     }
-    // Pull the two nearest police cars into the frame ahead of the player, closing
-    // in from up the road, so the chase — not just the stars — is visible: cars
-    // placed behind the player would sit behind the chase camera itself.
-    const fx = Math.sin(G.playerCar.angle);
-    const fz = Math.cos(G.playerCar.angle);
-    police.cars.slice(0, 2).forEach((entry, i) => {
-      const car = entry.car;
-      const ahead = 16 + i * 6;
-      const side = i === 0 ? -4 : 5;
-      car.x = G.playerCar.x + fx * ahead - fz * side;
-      car.z = G.playerCar.z + fz * ahead + fx * side;
-      car.angle = G.playerCar.angle + Math.PI; // facing back toward the player
-      car.speed = 22;
-      car.syncMesh();
+    addWanted(game.wanted, 2, 'shot staging');
+    syncPolice(game.scene, game.wanted, -60, 120, game.policeRng);
+    // Police flanking ahead of the player so the pursuit reads in frame.
+    game.wanted.police.forEach((p, i) => {
+      p.mesh.position.set(-48, 0, i === 0 ? 108 : 132);
+      p.heading = -Math.PI / 2;
+      p.speed = 20;
     });
-    showScreen('play');
-    return;
+  } else if (shot === 'mission') {
+    startMission(game.missions);
+    // Stand the player on the x=-120 street just short of the pickup
+    // marker, facing it, so beacon, objective line, and player share a frame.
+    game.player.group.position.set(-120, 0, 76);
+    game.player.heading = 0;
+    game.player.group.rotation.y = 0;
+    snapCam(-120, 76, 0, 8, 4.2);
   }
-
-  if (name === 'end') {
-    player.state.health = 0;
-    player.state.dead = true;
-    G.overReason = 'WASTED';
-    idleSeconds(3);
-    showScreen('over');
-    return;
-  }
-
-  // start (and any other name): the title over the living city.
-  idleSeconds(5);
-  showScreen('title');
+  return true;
 }

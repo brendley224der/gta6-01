@@ -1,50 +1,41 @@
-# gta6-01
+# Vice Shores
 
-[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/brendley224der/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/brendley224der/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+A GTA 6-inspired 3D open-world crime game that runs entirely in the browser.
+Explore a coastal city — downtown streets, a park district, a marina with
+boats, and a beach — on foot or behind the wheel.
 
-**Vice Shores** — a sun-soaked open-world crime game in the browser, built by an AI agent for make.fun's "Make GTA 6" bounty, $1,666 in USDC.
+## How to play
 
-You are Mara Voss, a courier fresh off the ferry who owes the Shore Syndicate. Explore a modern coastal city — downtown towers, a central park, a beach boardwalk, the docks and the marina — on foot and by car. Steal parked cars (and the odd yellow cab), outrun Shore PD when your wanted stars climb, and run three story missions to pay the debt: a marina delivery, tailing a rival courier, and a hot pickup at the docks under police heat. Finishing the story opens repeatable courier runs — deliveries and hot pickups, alternating. Everything is original: our own city, characters, vehicles, story, art and synthesized sound — no Rockstar names, maps or assets.
+- **WASD / arrows** — walk (hold Shift to run); drive when inside a car
+- **E** — enter / exit a car. Stealing a parked car raises your wanted level;
+  hailing a yellow taxi is free and legal
+- **M** — start the next story mission
 
-What is in the game:
+## Features
 
-- A 3D coastal city (three.js, vendored locally) with a road grid, towers, a central park, beach, ocean, marina pier and boats, sunset lighting, palms and street lamps
-- On foot (WASD + mouse camera) and by car (arcade driving, skid smoke and screech, crash shake, speed-stretching camera) — enter and exit any parked car with E
-- Traffic cars cruising the roads (including yellow cabs) and pedestrians strolling the sidewalks and the sand — strollers, brisk walkers and joggers — who flee from gunfire and speeding cars
-- A wanted system (1–5 stars) with black-and-white police cars that chase, ram and bust you, light bars flashing
-- Three story missions with a gold beacon, HUD objectives, a mission progress counter and cash rewards, plus repeatable courier runs
-- Combat on foot: punch (F) and a hitscan pistol (click) with tracers and a muzzle flash
-- HUD with health, cash, wanted stars, mission objective and progress, speed and a live minimap
-- Start screen, pause, WASTED / BUSTED game-over screens, and saves (money, mission progress, best cash) in localStorage
-- Synthesized WebAudio sound effects and a sunset music loop (M to mute), particles and screen shake
+- On-foot movement with a third-person camera
+- Driving: enter/exit cars, steering, acceleration, braking, speed in the HUD
+- Wanted system: crimes raise stars, police cars pursue and ram, escaping and
+  staying out of sight decays the wanted level
+- Three story missions with objectives, progress, and rewards ($500 / $750 /
+  $1,000): Package Run, Lose the Heat, VIP to the Marina
+- Minimap with player arrow, mission marker, police dots, and taxi icons
+- Taxis you can hail, pedestrians, and looping traffic for city life
+- HUD: wanted stars, money, speed, mission objective, banners, start screen
 
-## Controls
+## Tech
 
-| Key / Mouse | Action |
-|---|---|
-| W A S D / arrows | Move on foot, drive / steer in a car (Shift to run) |
-| Mouse drag | Orbit camera |
-| E | Enter / exit the nearest car |
-| F | Punch |
-| Click | Shoot (on foot) |
-| Enter | Start the next mission / courier run |
-| P / Esc | Pause |
-| M | Mute sound |
+- three.js 0.160.0, vendored under `game/vendor/` (no network at runtime)
+- Plain ES modules under `game/src/`; no build step, no paid APIs
 
-## Run it
+## Run locally
 
 ```sh
-node serve.ts
+node serve.ts   # serves game/ at http://localhost:8080/
 ```
 
-Then open http://localhost:8080 in a desktop browser. The game is plain static files under `game/` — no build step, no network requests, works offline.
+## Build the entry output
 
-## Screenshots
-
-The four screenshots in `screenshots/` are real renders of the game in a browser (title, driving with a mission running, a three-star police chase, and game over), staged with `?shot=start|play|chase|end&seed=1` as listed in `shots.json`. Exactly four — the dossier allows at most four, and a fifth stale shot once crashed the server build.
-
----
-
-<sub>Entered on [make.fun](https://make.fun/?utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
+```sh
+MAKEFUN_OUTPUT_DIR=out node main.ts
+```

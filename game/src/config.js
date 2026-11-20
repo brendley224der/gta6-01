@@ -1,113 +1,104 @@
-// Vice Shores — every tuning number, colour and mission definition in one place.
-// The city is a grid of blocks separated by roads, with a beach and ocean on its
-// east edge. One world unit is about one metre; the playable city spans roughly
-// -150..+150 in x and z, with the sand and water stretching further east.
+// Vice Shores — shared constants: city layout, tuning, mission text.
+// Pure data, no DOM or three.js imports, so every module can share it.
+
 export const CITY = {
-  block: 42, // side of one city block, in metres
-  road: 14, // width of the roads between blocks
-  blocks: 5, // blocks per side; roads sit between them
-  half: 150, // playable half-extent in x and z
-  beachX: 158, // where the sand starts, east of downtown
-  oceanX: 178, // where the water starts
+  half: 190, // playable ground extends -190..190 on x and z
+  roadSpacing: 60, // streets form a grid every 60 units
+  roadWidth: 10,
+  beachZ: 150, // south edge (z > 150) is sand + ocean
+  marinaX: 140, // east edge (x > 140) is water, docks and boats
+  parkMinX: -180,
+  parkMaxX: -70,
+  parkMinZ: -180,
+  parkMaxZ: -70,
 };
 
+// Streets run along these coordinates (both axes).
+export const STREETS = [-120, -60, 0, 60, 120];
+
 export const PLAYER = {
-  walkSpeed: 9,
-  runSpeed: 14,
-  radius: 0.7, // collision radius on foot
-  maxHealth: 100,
-  punchDamage: 25,
-  punchRange: 2.2,
+  walkSpeed: 6,
+  runSpeed: 11,
+  radius: 0.9,
+  height: 1.8,
 };
 
 export const CAR = {
   accel: 22,
   brake: 34,
   reverseAccel: 12,
-  maxSpeed: 42,
-  maxReverse: 12,
-  steer: 1.9, // radians per second at full lock
-  drag: 0.6, // rolling drag when coasting
+  maxSpeed: 34, // ~122 km/h
+  maxReverse: 10,
+  turnRate: 2.1,
+  drag: 0.55,
 };
 
-export const SKID = {
-  minSpeed: 18, // skidding needs this speed and a hard turn
-  minSteer: 0.7,
+export const POLICE = {
+  maxSpeed: 30,
+  accel: 20,
+  ramPush: 9,
+  spawnDistance: 55,
+  sightRange: 70,
+  // Wanted decays only while no police car is this close.
+  safeDistance: 60,
+  decayAfterSeconds: 6,
+  decayStepSeconds: 4,
 };
 
-export const CAMERA = {
-  fov: 62, // base field of view, degrees
-  driveKick: 8, // extra fov at top speed, for a sense of pace
-};
-
-export const WANTED = {
-  decaySeconds: 45, // seconds with no crime before one star fades
-  maxStars: 5,
-  policePerStar: 2,
-  bustDistance: 2.2, // how close a cop must get to bust Mara on foot
-};
-
-export const SAVE_KEY = 'vice-shores.save.v1';
-export const BEST_KEY = 'vice-shores.best.v1';
-
-export const PALETTE = {
-  skyTop: 0x2e6fb0,
-  skyHorizon: 0xffb36b,
-  sun: 0xffd9a0,
-  road: 0x2b2f36,
-  roadLine: 0xf5d76e,
-  sidewalk: 0x9aa0a3,
-  sand: 0xe8cf9a,
-  ocean: 0x1d7fa8,
-  grass: 0x5da24a,
-  building: [0xe8b48a, 0xd98f6a, 0x8fb8c9, 0xc9a0b4, 0xa8c686, 0x7fa8d9, 0xe0d0a0, 0xb48ac9],
-  glass: 0x2a4a66,
-  police: 0x1c2733,
-  taxi: 0xf2c230,
-  marina: 0x2a6f7f, // hulls and the pier at the docks
-  park: 0x4a7d3a, // the deep green of the central park's trees
-};
-
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-
-// The story: Mara Voss, a courier fresh off the ferry, owes the Shore Syndicate.
-// Each mission pays cash; finishing all three opens repeat courier runs.
 export const MISSIONS = [
   {
-    id: 'delivery',
-    title: 'Mission 1 — First Delivery',
-    brief: 'Mara needs a driver she can trust. Take the package to the Marina drop-off.',
-    objective: 'Drive to the Marina marker',
+    id: 1,
+    title: 'Package Run',
+    intro: 'Pick up the package at the yellow marker, then drop it off downtown.',
+    steps: [
+      { text: 'Pick up the package at the yellow marker', target: { x: -120, z: 90 } },
+      { text: 'Deliver the package downtown', target: { x: 60, z: -60 } },
+    ],
     reward: 500,
-    target: { x: 118, z: -118 },
-    kind: 'goto',
   },
   {
-    id: 'tail',
-    title: 'Mission 2 — Tail the Courier',
-    brief: 'A rival courier is moving Syndicate goods. Stay on his tail — do not lose him.',
-    objective: 'Tail the red courier car — stay close, stay unseen',
-    reward: 800,
-    kind: 'tail',
-    duration: 20,
+    id: 2,
+    title: 'Lose the Heat',
+    intro: 'The cops are on you. Break line of sight and stay clear until the heat dies down.',
+    steps: [
+      { text: 'Reach 2 wanted stars, then escape the police', target: null },
+      { text: 'Stay out of sight until your wanted level clears', target: null },
+    ],
+    reward: 750,
   },
   {
-    id: 'pickup',
-    title: 'Mission 3 — Hot Pickup',
-    brief: 'The docks are crawling with Shore PD. Grab the case, then lose the heat at the safehouse.',
-    objective: 'Grab the case at the Docks, then reach the Safehouse',
-    reward: 1500,
-    target: { x: -118, z: 118 },
-    safehouse: { x: -118, z: -118 },
-    kind: 'pickup',
-    wantedOnStart: 2,
+    id: 3,
+    title: 'VIP to the Marina',
+    intro: 'A VIP needs a ride to the marina. Hail a taxi, pick them up, then drive them there.',
+    steps: [
+      { text: 'Get into a yellow taxi (press E near one)', target: null },
+      { text: 'Pick up the VIP at the pink marker', target: { x: -30, z: 60 } },
+      { text: 'Drive the VIP to the marina', target: { x: 150, z: 60 } },
+    ],
+    reward: 1000,
   },
 ];
 
-export const HINTS = [
-  'WASD move · Mouse drag camera · E enter/exit car · F punch · Click shoot · P pause · M mute',
-  'Steal any parked car with E. Crime raises your wanted stars — Shore PD will chase you.',
-  'Finish missions to earn cash. Your progress saves automatically.',
-  'The minimap shows the gold mission marker, traffic in grey and police in blue.',
-  'At 3 stars or more the cops ram hard — a fresh car is cheaper than a hospital bill.',
-];
+export const SHOT_NAMES = ['start', 'drive', 'chase', 'mission'];
+
+// Deterministic PRNG (mulberry32) so ?seed=1 stages the same city every run.
+export function makeRng(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function clamp(v, lo, hi) {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+export function dist2d(ax, az, bx, bz) {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return Math.sqrt(dx * dx + dz * dz);
+}

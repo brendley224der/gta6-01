@@ -1,95 +1,77 @@
-// Keyboard and mouse input. Held keys give movement; one-shot presses (enter car,
-// punch, pause, mute, confirm) are queued as bit flags and taken once by the loop,
-// so a press between two frames is never lost and never counted twice. The camera
-// orbits by dragging the mouse; clicking also fires the player's weapon on foot.
-// Arrow keys mirror WASD, and Shift runs.
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
-export const ACTION_ENTER = 4;
-export const ACTION_PUNCH = 8;
-export const ACTION_MUTE = 16;
-export const ACTION_SHOOT = 32;
+// Vice Shores — keyboard input. One shared state object; the game loop
+// reads it every frame, and the test harness can drive it with real keys.
 
-const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+export const keys = {
+  up: false,
+  down: false,
+  left: false,
+  right: false,
+  run: false,
+  interact: false, // E — edge-triggered, consumed by the game loop
+  mission: false, // M — edge-triggered
+};
 
-export function createInput(target) {
-  const keys = new Set();
-  let actions = 0;
-  let dragX = 0;
-  let dragY = 0;
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
+let interactPressed = false;
+let missionPressed = false;
 
-  window.addEventListener('keydown', (event) => {
-    if (MOVE_KEYS.has(event.code)) {
-      keys.add(event.code);
-      event.preventDefault();
-    } else if (event.code === 'Space' || event.code === 'Enter') {
-      if (!event.repeat) actions |= ACTION_CONFIRM;
-      event.preventDefault();
-    } else if (event.code === 'KeyP' || event.code === 'Escape') {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else if (event.code === 'KeyE') {
-      if (!event.repeat) actions |= ACTION_ENTER;
-    } else if (event.code === 'KeyF') {
-      if (!event.repeat) actions |= ACTION_PUNCH;
-    } else if (event.code === 'KeyM') {
-      if (!event.repeat) actions |= ACTION_MUTE;
+const KEYMAP = {
+  KeyW: 'up',
+  ArrowUp: 'up',
+  KeyS: 'down',
+  ArrowDown: 'down',
+  KeyA: 'left',
+  ArrowLeft: 'left',
+  KeyD: 'right',
+  ArrowRight: 'right',
+  ShiftLeft: 'run',
+  ShiftRight: 'run',
+};
+
+export function initInput() {
+  window.addEventListener('keydown', (e) => {
+    const name = KEYMAP[e.code];
+    if (name) {
+      keys[name] = true;
+      e.preventDefault();
     }
+    if (e.code === 'KeyE' && !e.repeat) {
+      keys.interact = true;
+      interactPressed = true;
+    }
+    if (e.code === 'KeyM' && !e.repeat) {
+      keys.mission = true;
+      missionPressed = true;
+    }
+    if (e.code === 'Space') e.preventDefault();
   });
-  window.addEventListener('keyup', (event) => keys.delete(event.code));
-  window.addEventListener('blur', () => keys.clear());
+  window.addEventListener('keyup', (e) => {
+    const name = KEYMAP[e.code];
+    if (name) keys[name] = false;
+    if (e.code === 'KeyE') keys.interact = false;
+    if (e.code === 'KeyM') keys.mission = false;
+  });
+  window.addEventListener('blur', () => {
+    keys.up = keys.down = keys.left = keys.right = keys.run = false;
+  });
+}
 
-  target.addEventListener('pointerdown', (event) => {
-    dragging = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    try { target.setPointerCapture(event.pointerId); } catch { /* touch fallback */ }
-  });
-  target.addEventListener('pointermove', (event) => {
-    if (!dragging) return;
-    dragX += event.clientX - lastX;
-    dragY += event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
-  });
-  target.addEventListener('pointerup', () => {
-    dragging = false;
-    // A short click (not a drag) fires the weapon when on foot.
-    if (Math.abs(dragX) < 6 && Math.abs(dragY) < 6) actions |= ACTION_SHOOT;
-    dragX = 0;
-    dragY = 0;
-  });
+// Edge-triggered actions: the game loop calls these once per frame and
+// they clear themselves, so one key press fires exactly one action.
+export function consumeInteract() {
+  const v = interactPressed;
+  interactPressed = false;
+  return v;
+}
 
-  function axis(neg, pos) {
-    return (keys.has(pos) ? 1 : 0) - (keys.has(neg) ? 1 : 0);
-  }
+export function consumeMissionKey() {
+  const v = missionPressed;
+  missionPressed = false;
+  return v;
+}
 
-  return {
-    /** Forward/back (-1..1) and strafe (-1..1) from WASD / arrows. */
-    move() {
-      return {
-        forward: axis('KeyS', 'KeyW') + axis('ArrowDown', 'ArrowUp'),
-        strafe: axis('KeyA', 'KeyD') + axis('ArrowLeft', 'ArrowRight'),
-        run: keys.has('ShiftLeft') || keys.has('ShiftRight'),
-      };
-    },
-    /** Camera orbit deltas accumulated since the last call, in pixels. */
-    takeDrag() {
-      const out = { x: dragX, y: dragY };
-      dragX = 0;
-      dragY = 0;
-      return out;
-    },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
-    },
-    isDown(code) {
-      return keys.has(code);
-    },
-  };
+// Test/debug helper: press a key programmatically.
+export function pressKey(code, down) {
+  window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true }));
+  if (code === 'KeyE' && down) interactPressed = true;
+  if (code === 'KeyM' && down) missionPressed = true;
 }

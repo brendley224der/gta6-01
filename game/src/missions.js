@@ -1,149 +1,135 @@
-// Missions and the story arc: three scripted jobs for Mara Voss, then repeatable
-// courier runs for cash. A mission has a target, a live objective line for the
-// HUD, and a beacon in the world; completing one pays out and advances the arc.
-// The module owns no rendering beyond the beacon — the world draws that. The
-// repeat jobs alternate: a delivery, then a pickup that also draws the police,
-// so free roam never settles into one loop.
-import { MISSIONS } from './config.js';
+// Vice Shores — story missions: three sequential missions, each with steps,
+// a world marker, progress, and a completion reward. The game loop calls
+// updateMissions every frame with the player's position and state.
 
-export function createMissions(world) {
-  let index = 0; // index into MISSIONS, or MISSIONS.length when the arc is done
-  let active = null; // live mission state
-  let tailTimer = 0;
-  let phase = 'idle'; // idle | active | done
-  let message = '';
-  let messageTimer = 0;
-  let repeatCount = 0;
+import * as THREE from 'three';
+import { MISSIONS, dist2d } from './config.js';
 
-  function startMission(i) {
-    const def = MISSIONS[i];
-    active = { def, stage: 0, pickedUp: false };
-    tailTimer = 0;
-    phase = 'active';
-    if (def.kind === 'goto') world.setBeacon(def.target.x, def.target.z, true);
-    if (def.kind === 'pickup') world.setBeacon(def.target.x, def.target.z, true);
-    if (def.kind === 'tail') world.setBeacon(0, 0, false);
-    return def;
-  }
-
-  function completeMission() {
-    const def = active.def;
-    world.setBeacon(0, 0, false);
-    const reward = def.reward;
-    index += 1;
-    active = null;
-    phase = index >= MISSIONS.length ? 'done' : 'idle';
-    return reward;
-  }
-
+export function createMissionState(scene) {
+  // One shared marker: a tall glowing beacon + a floating diamond.
+  const marker = new THREE.Group();
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.2, 60, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+  );
+  beam.position.y = 30;
+  marker.add(beam);
+  const gem = new THREE.Mesh(
+    new THREE.OctahedronGeometry(1.6),
+    new THREE.MeshBasicMaterial({ color: 0xffd23e }),
+  );
+  gem.position.y = 6;
+  marker.add(gem);
+  marker.visible = false;
+  scene.add(marker);
   return {
-    get index() { return index; },
-    get phase() { return phase; },
-    get active() { return active; },
-    get message() { return message; },
-    get messageTimer() { return messageTimer; },
-    setIndex(i) {
-      index = Math.max(0, Math.min(MISSIONS.length, i));
-      phase = index >= MISSIONS.length ? 'done' : 'idle';
-    },
-    currentDef() {
-      return index < MISSIONS.length ? MISSIONS[index] : null;
-    },
-    /** Objective line for the HUD. */
-    objective() {
-      if (phase === 'active' && active) {
-        if (active.def.kind === 'pickup' && active.stage === 1) return 'Reach the Safehouse — lose the heat!';
-        if (active.def.kind === 'tail') return `Tail the courier — ${Math.max(0, Math.ceil(active.def.duration - tailTimer))}s to go`;
-        return active.def.objective;
-      }
-      if (phase === 'done') return 'Story complete — free roam! Press Enter for a courier run ($300)';
-      const def = MISSIONS[index];
-      return def ? `Next: ${def.title} — press Enter to start` : 'Free roam';
-    },
-    start() {
-      if (phase !== 'idle') return null;
-      const def = startMission(index);
-      message = `${def.title}: ${def.brief}`;
-      messageTimer = 6;
-      return def;
-    },
-    /** Start a repeatable courier run once the story is done. */
-    startRepeat(playerX, playerZ) {
-      repeatCount += 1;
-      const corners = [
-        { x: 118, z: 118 }, { x: -118, z: -118 }, { x: 118, z: -118 }, { x: -118, z: 118 },
-      ];
-      const target = corners[repeatCount % corners.length];
-      // Even runs are plain deliveries; odd runs are hot pickups: grab the parcel
-      // at the corner, then shake one star of heat at the safehouse.
-      if (repeatCount % 2 === 0) {
-        active = { def: { id: 'courier', title: 'Courier Run', brief: 'Drop the parcel at the marker.', objective: 'Deliver to the marker', reward: 300, kind: 'goto', target }, stage: 0 };
-        phase = 'active';
-        world.setBeacon(target.x, target.z, true);
-        message = 'Courier Run: deliver the parcel to the gold marker.';
-      } else {
-        const safehouse = corners[(repeatCount + 2) % corners.length];
-        active = { def: { id: 'courier-pickup', title: 'Hot Pickup', brief: 'Grab the parcel, then lose the heat at the safehouse.', objective: 'Grab the parcel, then reach the Safehouse', reward: 400, kind: 'pickup', target, safehouse }, stage: 0, pickedUp: false };
-        phase = 'active';
-        world.setBeacon(target.x, target.z, true);
-        message = 'Hot Pickup: grab the parcel at the marker — the cops will notice.';
-      }
-      messageTimer = 4;
-      return active.def;
-    },
-    /** Advance the active mission. Returns {reward} when finished, or null. */
-    update(dt, player, playerCar, courier, police) {
-      if (messageTimer > 0) messageTimer -= dt;
-      if (phase !== 'active' || !active) return null;
-      const def = active.def;
-      const px = playerCar ? playerCar.x : player.x;
-      const pz = playerCar ? playerCar.z : player.z;
-      if (def.kind === 'goto') {
-        const d = Math.hypot(px - def.target.x, pz - def.target.z);
-        if (d < 7) {
-          const reward = completeMission();
-          message = `Delivered! +$${reward}`;
-          messageTimer = 5;
-          return { reward };
-        }
-      } else if (def.kind === 'tail') {
-        const d = Math.hypot(px - courier.x, pz - courier.z);
-        if (d < 26) {
-          tailTimer += dt;
-          if (tailTimer >= def.duration) {
-            const reward = completeMission();
-            message = `You tailed him the whole way. +$${reward}`;
-            messageTimer = 5;
-            return { reward };
-          }
-        } else {
-          tailTimer = Math.max(0, tailTimer - dt * 0.5);
-        }
-      } else if (def.kind === 'pickup') {
-        if (active.stage === 0) {
-          const d = Math.hypot(px - def.target.x, pz - def.target.z);
-          if (d < 6) {
-            active.stage = 1;
-            active.pickedUp = true;
-            world.setBeacon(def.safehouse.x, def.safehouse.z, true);
-            message = 'Case grabbed! Get to the Safehouse — and shake the cops!';
-            messageTimer = 5;
-            if (police) police.addCrime(1);
-          }
-        } else {
-          const d = Math.hypot(px - def.safehouse.x, pz - def.safehouse.z);
-          if (d < 7) {
-            const reward = completeMission();
-            message = `Clean getaway! +$${reward}`;
-            messageTimer = 5;
-            return { reward };
-          }
-        }
-      }
-      return null;
-    },
-    onMissionStartWanted(police) {
-      if (active && active.def.wantedOnStart && police) police.setStars(active.def.wantedOnStart);
-    },
+    index: 0, // which mission is current (0-based)
+    step: 0,
+    active: false,
+    completed: [false, false, false],
+    marker,
+    gem,
+    banner: null, // { text, until } set by the game for the HUD banner
+    justCompleted: null, // mission id completed this frame (consumed by HUD)
+    heatPrimed: false, // mission 2: have we reached 2 stars yet?
   };
+}
+
+export function currentMission(state) {
+  return MISSIONS[state.index] || null;
+}
+
+export function currentObjective(state) {
+  const m = currentMission(state);
+  if (!m || !state.active) return state.index >= MISSIONS.length ? 'All missions complete — free roam!' : 'Press M to start the next mission';
+  return `${m.title}: ${m.steps[state.step].text}`;
+}
+
+export function startMission(state) {
+  const m = currentMission(state);
+  if (!m || state.active) return null;
+  state.active = true;
+  state.step = 0;
+  state.heatPrimed = false;
+  placeMarker(state);
+  return m;
+}
+
+function placeMarker(state) {
+  const m = currentMission(state);
+  const step = m && m.steps[state.step];
+  if (step && step.target) {
+    state.marker.position.set(step.target.x, 0, step.target.z);
+    state.marker.visible = true;
+  } else {
+    state.marker.visible = false;
+  }
+}
+
+function completeStep(state, game) {
+  const m = currentMission(state);
+  state.step += 1;
+  if (state.step >= m.steps.length) {
+    completeMission(state, game);
+  } else {
+    placeMarker(state);
+  }
+}
+
+function completeMission(state, game) {
+  const m = currentMission(state);
+  state.completed[state.index] = true;
+  state.justCompleted = m.id;
+  game.money += m.reward;
+  state.banner = { text: `Mission complete: ${m.title} — +$${m.reward}`, until: performance.now() + 4000 };
+  state.active = false;
+  state.marker.visible = false;
+  state.index += 1;
+}
+
+// `ctx` carries the live game facts the missions need:
+// { x, z, wanted, inCar, inTaxi, hasVip, game }.
+export function updateMissions(state, ctx, dt) {
+  // Spin the marker gem for visibility.
+  if (state.marker.visible) state.gem.rotation.y += dt * 2;
+  if (!state.active) return;
+  const m = currentMission(state);
+  if (!m) return;
+
+  if (m.id === 1) {
+    // Reach the marker for each step.
+    const step = m.steps[state.step];
+    if (step.target && dist2d(ctx.x, ctx.z, step.target.x, step.target.z) < 6) {
+      completeStep(state, ctx.game);
+    }
+  } else if (m.id === 2) {
+    // Step 0: reach 2 stars. Step 1: wanted fully cleared.
+    if (state.step === 0) {
+      if (ctx.wanted >= 2) {
+        state.heatPrimed = true;
+        state.step = 1;
+      }
+    } else if (ctx.wanted === 0 && state.heatPrimed) {
+      completeMission(state, ctx.game);
+    }
+  } else if (m.id === 3) {
+    if (state.step === 0) {
+      if (ctx.inTaxi) {
+        state.step = 1;
+        placeMarker(state);
+      }
+    } else if (state.step === 1) {
+      const step = m.steps[1];
+      if (dist2d(ctx.x, ctx.z, step.target.x, step.target.z) < 6) {
+        ctx.hasVip = true;
+        state.step = 2;
+        placeMarker(state);
+      }
+    } else {
+      const step = m.steps[2];
+      if (ctx.inTaxi && dist2d(ctx.x, ctx.z, step.target.x, step.target.z) < 7) {
+        completeMission(state, ctx.game);
+      }
+    }
+  }
 }
